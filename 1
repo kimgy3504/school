@@ -1,0 +1,51 @@
+import streamlit as st
+import pandas as pd
+import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import calendar
+
+# 1️⃣ 학생 목록 정의
+students = ["홍길동", "김철수", "이영희", "박영수", "최지연"]  # 원하는 만큼 추가
+
+# 2️⃣ Google Sheets 연결
+def connect_sheet(sheet_name):
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+    sheet = client.open(sheet_name).sheet1
+    return sheet
+
+# 3️⃣ Streamlit UI
+st.set_page_config(page_title="출석부", layout="centered")
+st.title("🎓 출석 체크 (결석자만 입력하세요)")
+
+today = datetime.date.today()
+weekday = calendar.day_name[today.weekday()]  # 요일 이름 (Monday ~ Sunday)
+
+st.write(f"오늘은 **{today} ({weekday})**입니다.")
+
+# Google Sheets 연결
+SHEET_NAME = "출석부 기록"  # 직접 만든 시트 이름
+sheet = connect_sheet(SHEET_NAME)
+
+# 4️⃣ 결석 입력
+st.subheader("🙋‍♀️ 결석한 친구만 선택해주세요")
+
+absent_name = st.selectbox("이름을 선택하세요", [""] + students)
+if absent_name:
+    reason = st.text_input("결석 사유를 입력해주세요", "")
+    if st.button("제출하기"):
+        sheet.append_row([str(today), weekday, absent_name, "결석", reason])
+        st.success("결석 정보가 저장되었습니다.")
+
+# 5️⃣ 출석자 자동 처리
+if st.button("자동 출석 처리"):
+    # 이미 기록된 학생 목록 가져오기 (중복 방지)
+    all_records = sheet.get_all_records()
+    recorded_names = [row["이름"] for row in all_records if row["날짜"] == str(today)]
+
+    for name in students:
+        if name not in recorded_names:
+            sheet.append_row([str(today), weekday, name, "출석", ""])
+    st.success("출석자 자동 기록이 완료되었습니다!")
